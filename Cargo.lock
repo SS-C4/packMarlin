@@ -249,7 +249,7 @@ dependencies = [
 [[package]]
 name = "ark-marlin"
 version = "0.3.0"
-source = "git+https://github.com/SS-C4/marlin.git#9f17125b4498303efbecbf608a8e1eb9d3308bc2"
+source = "git+https://github.com/SS-C4/marlin.git#b0cc4c4a9b036a8a5a0fec3595292e478b4343bf"
 dependencies = [
  "ark-ff 0.3.0",
  "ark-poly 0.3.0",
