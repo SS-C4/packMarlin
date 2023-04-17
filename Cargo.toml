@@ -1,0 +1,23 @@
+[package]
+name = "packmarlin"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+ark-bls12-381-old = { package = "ark-bls12-381", version = "0.3.0", default-features = false, features = [ "curve" ] }
+ark-circom = { git = "https://github.com/SS-C4/ark-circom.git" }
+ark-ec = "0.4.2"
+ark-ff = "0.4.2"
+ark-marlin = { git = "https://github.com/SS-C4/marlin.git", version = "0.3.0" }
+ark-poly = "0.3.0"
+ark-poly-commit = "0.3.0"
+ark-relations = "0.3.0"
+ark-std = "0.3.0"
+blake2 = "0.9"
+hex = "0.4.3"
+num = "0.4.0"
+rand_chacha = "0.3.1"
+serde = "1.0.160"
+serde_json = "1.0.96"
