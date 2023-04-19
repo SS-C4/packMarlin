@@ -1,96 +1,124 @@
 use ark_circom::{circom::{R1CSFile, R1CS}, CircomCircuit};
 use ark_bls12_381_old::{Bls12_381, Fr as BlsFr};
 use ark_std::io::{BufReader, Cursor};
-use std::str::FromStr;
+use std::{str::FromStr, fs::{read, read_to_string}};
 use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystem};
+use std::time::Instant;
 
-fn main() {
-    // open pack.r1cs and read into data
-    let data = include_bytes!("../example.r1cs");
+use rand::rngs::StdRng;
+use ark_marlin::Marlin;
+use ark_poly_commit::marlin_pc::MarlinKZG10;
+use ark_poly::univariate::DensePolynomial;
+use blake2::Blake2s;
+use rand_chacha::ChaChaRng;
+use ark_marlin::SimpleHashFiatShamirRng;
+use ark_serialize::{CanonicalSerialize, CanonicalDeserialize};
+use ark_marlin::UniversalSRS;
+
+fn load_values(file: String) -> (R1CS<Bls12_381>, Option<Vec<BlsFr>>, Vec<BlsFr>, UniversalSRS<BlsFr,MarlinKZG10<Bls12_381,DensePolynomial<BlsFr>>>) {
+    let data = read(file.clone()+".r1cs").unwrap();
+    let witness = read_to_string(file.clone()+"_witness.json").unwrap();
 
     let reader = BufReader::new(Cursor::new(&data[..]));
     let file = R1CSFile::<Bls12_381>::new(reader).unwrap();
     let r1cs = R1CS::from(file);
     
-    let witness = include_str!("../witness.json");
     let witness: Vec<String> = serde_json::from_str(&witness).unwrap();
 
     // convert witness into field elements
-    let witness = Some(witness
-        .iter()
-        .map(|w| {
-            BlsFr::from_str(&w).unwrap()
-        })
-        .collect::<Vec<BlsFr>>());
-
-    let pubinput = include_str!("../public.json");
-    let pubinput: Vec<String> = serde_json::from_str(&pubinput).unwrap();
-
-    // convert public input into field elements
-    let pubinput = pubinput
+    let witness = witness
         .iter()
         .map(|w| {
             BlsFr::from_str(&w).unwrap()
         })
         .collect::<Vec<BlsFr>>();
 
-    let mut circuit = CircomCircuit::<Bls12_381>{r1cs, witness};
+    let pubinp: Vec<BlsFr> = witness[1..r1cs.num_inputs].to_vec();
+    let witness = Some(witness);
 
-    let cs = ConstraintSystem::<BlsFr>::new_ref();
+    let srs_bytes = std::fs::read("srs.bin").unwrap();
+    let srs = 
+        UniversalSRS::<BlsFr,MarlinKZG10<Bls12_381,DensePolynomial<BlsFr>>>::deserialize_unchecked(&srs_bytes[..]).unwrap();
+
+    (r1cs, witness, pubinp, srs)
+}
+
+#[allow(dead_code)]
+fn setup(file: String, rng: &mut StdRng) {
+    let mut nc: usize = 0;
+    let mut nv: usize = 0;
+    let mut nz: usize = 0;
+
+    if file == "example" {
+        (nc, nv, nz) = (100, 100, 100);
+    } else if file == "packed" {
+        (nc, nv, nz) = (100000, 200000, 2400000);
+    } else if file == "nopack" {
+        (nc, nv, nz) = (1000000, 1000000, 4600000);
+    } 
     
-    circuit.r1cs.wire_mapping = None;
-    circuit.clone().generate_constraints(cs.clone()).unwrap();
-    
-    let is_satisfied = cs.is_satisfied().unwrap();
-    if !is_satisfied {
-        println!(
-            "Unsatisfied constraint: {:?}",
-            cs.which_is_unsatisfied().unwrap()
-        );
-    }
-
-    println!("is_satisfied: {}", is_satisfied);
-
-    use ark_marlin::Marlin;
-    use ark_poly_commit::marlin_pc::MarlinKZG10;
-    use ark_poly::univariate::DensePolynomial;
-    use blake2::Blake2s;
-    use rand_chacha::ChaChaRng;
-    use ark_marlin::SimpleHashFiatShamirRng;
-
-    let rng = &mut ark_std::test_rng();
-
     let srs = Marlin::<
         BlsFr,
         MarlinKZG10<Bls12_381, DensePolynomial<BlsFr>>,
         SimpleHashFiatShamirRng<Blake2s, ChaChaRng>,
-    >::universal_setup(1000, 2000, 2400, rng)
+    >::universal_setup(nc, nv, nz, rng)
     .unwrap();
 
-    println!("srs");
+    // Write srs 
+    let mut srs_bytes = vec![];
+    srs.serialize_uncompressed(&mut srs_bytes).unwrap();
+    std::fs::write(file+"_srs.bin", srs_bytes).unwrap();
+}
 
-    let (pk, vk) = Marlin::<
-        BlsFr,
-        MarlinKZG10<Bls12_381, DensePolynomial<BlsFr>>,
-        SimpleHashFiatShamirRng<Blake2s, ChaChaRng>,
-    >::index(&srs, circuit.clone())
-    .unwrap();
+fn main() {
+    let file = "example";
 
-    println!("pk");
+    let s_load = Instant::now();
 
-    let proof = Marlin::<
-        BlsFr,
-        MarlinKZG10<Bls12_381, DensePolynomial<BlsFr>>,
-        SimpleHashFiatShamirRng<Blake2s, ChaChaRng>,
-    >::prove(&pk, circuit.clone(), rng);
+        let (r1cs, witness, pubinp, srs) 
+            = load_values(file.to_string());
 
-    println!("proof");
+        let mut circuit = CircomCircuit::<Bls12_381>{r1cs, witness};
+        let cs = ConstraintSystem::<BlsFr>::new_ref();
+        circuit.r1cs.wire_mapping = None;
+        circuit.clone().generate_constraints(cs.clone()).unwrap();
+        
+        let is_satisfied = cs.is_satisfied().unwrap();
+        assert!(is_satisfied, "Constraints not satisfied");
 
-    let is_valid = Marlin::<
-        BlsFr,
-        MarlinKZG10<Bls12_381, DensePolynomial<BlsFr>>,
-        SimpleHashFiatShamirRng<Blake2s, ChaChaRng>,
-    >::verify(&vk, &pubinput, &proof.unwrap(), rng);
+        let rng = &mut ark_std::test_rng();
+        // setup(file.to_string(), rng);
+
+    let t_load = s_load.elapsed();
+    println!("load: {:?}", t_load);
+
+    let s_load = Instant::now();
+        let (pk, vk) = Marlin::<
+            BlsFr,
+            MarlinKZG10<Bls12_381, DensePolynomial<BlsFr>>,
+            SimpleHashFiatShamirRng<Blake2s, ChaChaRng>,
+        >::index(&srs, circuit.clone())
+        .unwrap();
+    let t_load = s_load.elapsed();
+    println!("index: {:?}", t_load);
+
+    let s_load = Instant::now();
+        let proof = Marlin::<
+            BlsFr,
+            MarlinKZG10<Bls12_381, DensePolynomial<BlsFr>>,
+            SimpleHashFiatShamirRng<Blake2s, ChaChaRng>,
+        >::prove(&pk, circuit.clone(), rng);
+    let t_load = s_load.elapsed();
+    println!("prove: {:?}", t_load);
+
+    let s_load = Instant::now();
+        let is_valid = Marlin::<
+            BlsFr,
+            MarlinKZG10<Bls12_381, DensePolynomial<BlsFr>>,
+            SimpleHashFiatShamirRng<Blake2s, ChaChaRng>,
+        >::verify(&vk, &pubinp, &proof.unwrap(), rng);
+    let t_load = s_load.elapsed();
+    println!("verify: {:?}", t_load);
 
     println!("is_valid: {}", is_valid.unwrap());
 

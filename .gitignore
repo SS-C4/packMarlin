@@ -1,3 +1,6 @@
 /target
 
-packed*
+*.bin
+
+*.r1cs
+*.json
