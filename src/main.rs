@@ -20,8 +20,8 @@ fn load_values(file: String) -> (R1CS<Bls12_381>, Option<Vec<BlsFr>>, Vec<BlsFr>
     let witness = read_to_string(file.clone()+"_witness.json").unwrap();
 
     let reader = BufReader::new(Cursor::new(&data[..]));
-    let file = R1CSFile::<Bls12_381>::new(reader).unwrap();
-    let r1cs = R1CS::from(file);
+    let r1csfile = R1CSFile::<Bls12_381>::new(reader).unwrap();
+    let r1cs = R1CS::from(r1csfile);
     
     let witness: Vec<String> = serde_json::from_str(&witness).unwrap();
 
@@ -36,7 +36,7 @@ fn load_values(file: String) -> (R1CS<Bls12_381>, Option<Vec<BlsFr>>, Vec<BlsFr>
     let pubinp: Vec<BlsFr> = witness[1..r1cs.num_inputs].to_vec();
     let witness = Some(witness);
 
-    let srs_bytes = std::fs::read("srs.bin").unwrap();
+    let srs_bytes = std::fs::read(file+"_srs.bin").unwrap();
     let srs = 
         UniversalSRS::<BlsFr,MarlinKZG10<Bls12_381,DensePolynomial<BlsFr>>>::deserialize_unchecked(&srs_bytes[..]).unwrap();
 
@@ -73,6 +73,9 @@ fn setup(file: String, rng: &mut StdRng) {
 fn main() {
     let file = "example";
 
+    let rng = &mut ark_std::test_rng();
+    // setup(file.to_string(), rng);
+
     let s_load = Instant::now();
 
         let (r1cs, witness, pubinp, srs) 
@@ -85,9 +88,6 @@ fn main() {
         
         let is_satisfied = cs.is_satisfied().unwrap();
         assert!(is_satisfied, "Constraints not satisfied");
-
-        let rng = &mut ark_std::test_rng();
-        // setup(file.to_string(), rng);
 
     let t_load = s_load.elapsed();
     println!("load: {:?}", t_load);
