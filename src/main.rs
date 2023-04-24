@@ -92,33 +92,33 @@ fn main() {
     let t_load = s_load.elapsed();
     println!("load: {:?}", t_load);
 
-    let s_load = Instant::now();
+    let s_index = Instant::now();
         let (pk, vk) = Marlin::<
             BlsFr,
             MarlinKZG10<Bls12_381, DensePolynomial<BlsFr>>,
             SimpleHashFiatShamirRng<Blake2s, ChaChaRng>,
         >::index(&srs, circuit.clone())
         .unwrap();
-    let t_load = s_load.elapsed();
-    println!("index: {:?}", t_load);
+    let t_index = s_index.elapsed();
+    println!("index: {:?}", t_index);
 
-    let s_load = Instant::now();
+    let s_prove = Instant::now();
         let proof = Marlin::<
             BlsFr,
             MarlinKZG10<Bls12_381, DensePolynomial<BlsFr>>,
             SimpleHashFiatShamirRng<Blake2s, ChaChaRng>,
         >::prove(&pk, circuit.clone(), rng);
-    let t_load = s_load.elapsed();
-    println!("prove: {:?}", t_load);
+    let t_prove = s_prove.elapsed();
+    println!("prove: {:?}", t_prove);
 
-    let s_load = Instant::now();
+    let s_verify = Instant::now();
         let is_valid = Marlin::<
             BlsFr,
             MarlinKZG10<Bls12_381, DensePolynomial<BlsFr>>,
             SimpleHashFiatShamirRng<Blake2s, ChaChaRng>,
         >::verify(&vk, &pubinp, &proof.unwrap(), rng);
-    let t_load = s_load.elapsed();
-    println!("verify: {:?}", t_load);
+    let t_verify = s_verify.elapsed();
+    println!("verify: {:?}", t_verify);
 
     println!("is_valid: {}", is_valid.unwrap());
 

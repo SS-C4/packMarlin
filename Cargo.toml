@@ -15,7 +15,7 @@ ark-poly = "0.3.0"
 ark-poly-commit = "0.3.0"
 ark-relations = "0.3.0"
 ark-serialize = "0.3.0"
-ark-std = "0.3.0"
+ark-std = {package = "ark-std", version = "0.3.0", features = [ "print-trace" ] }
 blake2 = "0.9"
 hex = "0.4.3"
 num = "0.4.0"
