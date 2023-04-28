@@ -52,9 +52,9 @@ fn setup(file: String, rng: &mut StdRng) {
     if file == "example" {
         (nc, nv, nz) = (100, 100, 100);
     } else if file == "packed" {
-        (nc, nv, nz) = (100000, 200000, 2400000);
+        (nc, nv, nz) = ( 440000,  561000, 4660000);
     } else if file == "nopack" {
-        (nc, nv, nz) = (1000000, 1000000, 4600000);
+        (nc, nv, nz) = (1300000, 1300000, 6000000);
     } 
     
     let srs = Marlin::<
@@ -71,7 +71,7 @@ fn setup(file: String, rng: &mut StdRng) {
 }
 
 fn main() {
-    let file = "example";
+    let file = "packed";
 
     let rng = &mut ark_std::test_rng();
     // setup(file.to_string(), rng);
