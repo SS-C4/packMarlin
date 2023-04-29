@@ -1,0 +1,3 @@
+[submodule "packR1CS"]
+	path = packR1CS
+	url = git@github.com:SS-C4/packR1CS.git
