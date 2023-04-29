@@ -15,6 +15,11 @@ use ark_marlin::SimpleHashFiatShamirRng;
 use ark_serialize::{CanonicalSerialize, CanonicalDeserialize};
 use ark_marlin::UniversalSRS;
 
+pub mod setup;
+pub mod index;
+pub mod prove;
+pub mod verify;
+
 fn load_values(file: String) -> (R1CS<Bls12_381>, Option<Vec<BlsFr>>, Vec<BlsFr>, UniversalSRS<BlsFr,MarlinKZG10<Bls12_381,DensePolynomial<BlsFr>>>) {
     let data = read(file.clone()+".r1cs").unwrap();
     let witness = read_to_string(file.clone()+"_witness.json").unwrap();
@@ -121,5 +126,4 @@ fn main() {
     println!("verify: {:?}", t_verify);
 
     println!("is_valid: {}", is_valid.unwrap());
-
 }
