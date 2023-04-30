@@ -15,6 +15,9 @@ use ark_marlin::SimpleHashFiatShamirRng;
 use ark_serialize::{CanonicalSerialize, CanonicalDeserialize};
 use ark_marlin::UniversalSRS;
 
+#[macro_use(to_bytes)]
+extern crate ark_ff;
+
 pub mod setup;
 pub mod index;
 pub mod prove;

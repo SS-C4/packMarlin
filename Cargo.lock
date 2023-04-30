@@ -1130,7 +1130,7 @@ dependencies = [
 [[package]]
 name = "ethers-core"
 version = "2.0.3"
-source = "git+https://github.com/gakonst/ethers-rs#68bc044a88a04ef771e395cadcbc929fd33cfdbd"
+source = "git+https://github.com/gakonst/ethers-rs#23922536f29929a3e413d605bc16e33d4c858044"
 dependencies = [
  "arrayvec",
  "bytes",
@@ -1776,7 +1776,7 @@ dependencies = [
  "ark-bls12-381",
  "ark-circom",
  "ark-ec 0.4.2",
- "ark-ff 0.4.2",
+ "ark-ff 0.3.0",
  "ark-marlin",
  "ark-poly 0.3.0",
  "ark-poly-commit",
@@ -2181,9 +2181,9 @@ dependencies = [
 
 [[package]]
 name = "rustix"
-version = "0.37.17"
+version = "0.37.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bc809f704c03a812ac71f22456c857be34185cac691a4316f27ab0f633bb9009"
+checksum = "8bbfc1d1c7c40c01715f47d71444744a81669ca84e8b63e25a55e169b1f86433"
 dependencies = [
  "bitflags",
  "errno",

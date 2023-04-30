@@ -28,10 +28,10 @@ pub(crate) fn index(
     end_timer!(packer_time);
 
     let file_time = start_timer!(|| "Loading R1CS and witness files");
-    let file: String = "./packR1CS/scripts/.output/packed_subcircuit.r1cs".to_string();
+    let file: String = "./packR1CS/scripts/.output/".to_string();
 
-    let data = read(file.clone()+".r1cs").unwrap();
-    let witness = read_to_string(file.clone()+"_witness.json").unwrap();
+    let data = read(file.clone()+"packed_subcircuit.r1cs").unwrap();
+    let witness = read_to_string(file.clone()+"packed_witness.json").unwrap();
 
     let reader = BufReader::new(Cursor::new(&data[..]));
     let r1csfile = R1CSFile::<Bls12_381>::new(reader).unwrap();

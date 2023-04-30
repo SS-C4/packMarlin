@@ -9,7 +9,7 @@ edition = "2021"
 ark-bls12-381-old = { package = "ark-bls12-381", version = "0.3.0", default-features = false, features = [ "curve" ] }
 ark-circom = { git = "https://github.com/SS-C4/ark-circom.git" }
 ark-ec = "0.4.2"
-ark-ff = "0.4.2"
+ark-ff = "0.3.0"
 ark-marlin = { git = "https://github.com/SS-C4/marlin.git", version = "0.3.0" }
 ark-poly = "0.3.0"
 ark-poly-commit = "0.3.0"
