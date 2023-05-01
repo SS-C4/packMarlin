@@ -54,9 +54,9 @@ fn load_values(file: String) -> (R1CS<Bls12_381>, Option<Vec<BlsFr>>, Vec<BlsFr>
 
 #[allow(dead_code)]
 fn setup(file: String, rng: &mut StdRng) {
-    let mut nc: usize = 0;
-    let mut nv: usize = 0;
-    let mut nz: usize = 0;
+    let mut nc: usize = 440000;
+    let mut nv: usize = 561000;
+    let mut nz: usize = 4660000;
 
     if file == "example" {
         (nc, nv, nz) = (100, 100, 100);
@@ -76,7 +76,7 @@ fn setup(file: String, rng: &mut StdRng) {
     // Write srs 
     let mut srs_bytes = vec![];
     srs.serialize_uncompressed(&mut srs_bytes).unwrap();
-    std::fs::write(file+"_srs.bin", srs_bytes).unwrap();
+    std::fs::write("packed_srs.bin", srs_bytes).unwrap();
 }
 
 fn main() {
