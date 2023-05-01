@@ -83,7 +83,7 @@ fn main() {
     let file: String = "./packR1CS/scripts/.output/".to_string();
 
     let mut rng = &mut ark_std::test_rng();
-    setup(file.to_string(), rng);
+    // setup(file.to_string(), rng);
 
     let s_load = Instant::now();
 
