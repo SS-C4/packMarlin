@@ -20,12 +20,12 @@ use crate::ChaChaRng;
 use crate::MarlinKZG10;
 use crate::Marlin;
 use crate::{ Bls12_381, BlsFr };
-use ark_marlin::{IndexProverKey, Proof};
+use ark_marlin::{IndexProverKey, Proof, AHPForR1CS};
 use ark_ff::Zero;
 
 pub const PROTOCOL_NAME: &'static [u8] = b"packmarlin";
 
-pub(crate) fn write_poso_rand(poso_rand: Vec<BlsFr>) {
+pub(crate) fn write_poso_rand(poso_rand: Vec<u16>) {
     // convert poso_rand to vector of strings
     let poso_rand: Vec<String> = poso_rand
         .iter()
@@ -45,7 +45,7 @@ pub(crate) fn prove(
     rng: &mut StdRng,
     poso_size: usize
 ) -> (Vec<LabeledCommitment<Commitment<Bls12_381>>>, Vec<Randomness<BlsFr, DensePolynomial<BlsFr>>>, Proof<BlsFr, MarlinKZG10<Bls12_381,DensePolynomial<BlsFr>>>) {
-    assert!(circuit.r1cs.num_inputs == pk.index.index_info.num_instance_variables);
+    // assert!(circuit.r1cs.num_inputs == pk.index.index_info.num_instance_variables);
 
     let domain_h = GeneralEvaluationDomain::new(pk.index.index_info.num_constraints).unwrap();
     let domain_x = GeneralEvaluationDomain::new(pk.index.index_info.num_instance_variables).unwrap();
@@ -55,7 +55,7 @@ pub(crate) fn prove(
     let mut w_extended = witness.clone();
     w_extended.extend(vec![
         BlsFr::zero();
-        pk.index.index_info.num_constraints - circuit.r1cs.num_inputs - witness.len()
+        pk.index.index_info.num_constraints - domain_x.size() - witness.len()
     ]);
 
     
@@ -87,7 +87,8 @@ pub(crate) fn prove(
 
     let binding = w.clone();
     let w_p = vec![&binding].into_iter();
-    let (witness_comm, witness_rand) = MarlinKZG10::<Bls12_381,DensePolynomial<BlsFr>>::commit(&pk.committer_key, w_p, Some(rng)).unwrap();
+    let (witness_comm, witness_rand) = 
+        MarlinKZG10::<Bls12_381,DensePolynomial<BlsFr>>::commit(&pk.committer_key, w_p, Some(rng)).unwrap();
 
     end_timer!(w_poly_comm_time);
 
@@ -97,17 +98,14 @@ pub(crate) fn prove(
     let mut fs_rng: SimpleHashFiatShamirRng<Blake2s,ChaChaRng> = FiatShamirRng::initialize(&to_bytes![&PROTOCOL_NAME, &pk.index_vk, &public_input].unwrap());
     fs_rng.absorb(&witness_comm);
 
-    let poso_rand = cfg_into_iter!(0..poso_size)
-        .map(|_| BlsFr::rand(&mut fs_rng))
-        .collect::<Vec<BlsFr>>();
+    let poso_rand = cfg_into_iter!(0..poso_size*11)
+        .map(|_| u16::from(u8::rand(&mut fs_rng)) + 1)
+        .collect::<Vec<u16>>();
 
-    write_poso_rand(poso_rand);
+    write_poso_rand(poso_rand.clone());
     end_timer!(poso_time);
-
-    // update vk inside pk
-    let mut mod_pk = pk.clone();
-
-    // re0run packer and re-read witness
+    
+    // re run packer and re-read witness
     let packer_time = start_timer!(|| "Running packer.js with randomness");
     let _ = Command::new("node")
         .arg("./packR1CS/scripts/packer.js")
@@ -145,6 +143,37 @@ pub(crate) fn prove(
     circuit.clone().generate_constraints(cs.clone()).unwrap();
     end_timer!(gen_time);
     end_timer!(file_time);
+
+    // update vk inside pk
+    let update_time = start_timer!(|| "Updating vk inside pk");
+    let mut mod_pk = pk.clone();
+    
+    let ind = AHPForR1CS::<BlsFr>::index(circuit.clone()).unwrap();
+    mod_pk.index.c = ind.c;
+    mod_pk.index.joint_arith.val_c = ind.joint_arith.val_c;
+    mod_pk.index.joint_arith.evals_on_K.val_c = ind.joint_arith.evals_on_K.val_c;
+
+    // update the commitment to val_c - dummy MSM for now of size poso_size*reps
+    let poso_rand: Vec<BlsFr> = poso_rand
+        .iter()
+        .map(|w| {
+            BlsFr::from(*w)
+        })
+        .collect::<Vec<BlsFr>>();
+    let mut diff = poso_rand.clone();
+    
+    //commit to diff
+    let diff_time = start_timer!(|| "Committing to diff polynomial");
+    let diff = DensePolynomial::from_coefficients_vec(diff);
+    let diff = LabeledPolynomial::new("diff".to_string(), diff, None, None);
+    let diff_p = vec![&diff].into_iter();
+    let (diff_comm, diff_rand) = 
+        MarlinKZG10::<Bls12_381,DensePolynomial<BlsFr>>::commit(&pk.committer_key, diff_p, Some(rng)).unwrap();
+    end_timer!(diff_time);  
+ 
+
+    end_timer!(update_time);
+
 
     // DONT run indexer again, run normal marlin prover and zerotest prover
     let proof = Marlin::<

@@ -1,14 +1,15 @@
 use ark_circom::{circom::{R1CSFile, R1CS}, CircomCircuit};
 use ark_bls12_381_old::{Bls12_381, Fr as BlsFr};
-use ark_std::io::{BufReader, Cursor};
+use ark_ff::UniformRand;
+use ark_std::{io::{BufReader, Cursor}, cfg_into_iter, start_timer, end_timer};
 use std::{str::FromStr, fs::{read, read_to_string}};
 use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystem};
 use std::time::Instant;
 
 use rand::rngs::StdRng;
-use ark_marlin::Marlin;
-use ark_poly_commit::marlin_pc::MarlinKZG10;
-use ark_poly::univariate::DensePolynomial;
+use ark_marlin::{Marlin, ahp::LabeledPolynomial};
+use ark_poly_commit::{marlin_pc::MarlinKZG10, PolynomialCommitment};
+use ark_poly::{univariate::DensePolynomial, UVPolynomial};
 use blake2::Blake2s;
 use rand_chacha::ChaChaRng;
 use ark_marlin::SimpleHashFiatShamirRng;
@@ -18,14 +19,14 @@ use ark_marlin::UniversalSRS;
 #[macro_use(to_bytes)]
 extern crate ark_ff;
 
-pub mod setup;
-pub mod index;
+// pub mod setup;
+// pub mod index;
 pub mod prove;
-pub mod verify;
+// pub mod verify;
 
 fn load_values(file: String) -> (R1CS<Bls12_381>, Option<Vec<BlsFr>>, Vec<BlsFr>, UniversalSRS<BlsFr,MarlinKZG10<Bls12_381,DensePolynomial<BlsFr>>>) {
-    let data = read(file.clone()+".r1cs").unwrap();
-    let witness = read_to_string(file.clone()+"_witness.json").unwrap();
+    let data = read(file.clone()+"packed_subcircuit.r1cs").unwrap();
+    let witness = read_to_string(file.clone()+"packed_witness.json").unwrap();
 
     let reader = BufReader::new(Cursor::new(&data[..]));
     let r1csfile = R1CSFile::<Bls12_381>::new(reader).unwrap();
@@ -44,7 +45,7 @@ fn load_values(file: String) -> (R1CS<Bls12_381>, Option<Vec<BlsFr>>, Vec<BlsFr>
     let pubinp: Vec<BlsFr> = witness[1..r1cs.num_inputs].to_vec();
     let witness = Some(witness);
 
-    let srs_bytes = std::fs::read(file+"_srs.bin").unwrap();
+    let srs_bytes = std::fs::read("packed_srs.bin").unwrap();
     let srs = 
         UniversalSRS::<BlsFr,MarlinKZG10<Bls12_381,DensePolynomial<BlsFr>>>::deserialize_unchecked(&srs_bytes[..]).unwrap();
 
@@ -79,10 +80,10 @@ fn setup(file: String, rng: &mut StdRng) {
 }
 
 fn main() {
-    let file = "packed";
+    let file: String = "./packR1CS/scripts/.output/".to_string();
 
-    let rng = &mut ark_std::test_rng();
-    // setup(file.to_string(), rng);
+    let mut rng = &mut ark_std::test_rng();
+    setup(file.to_string(), rng);
 
     let s_load = Instant::now();
 
@@ -109,6 +110,27 @@ fn main() {
         .unwrap();
     let t_index = s_index.elapsed();
     println!("index: {:?}", t_index);
+
+    let poso_rand = cfg_into_iter!(0..969*11)
+        .map(|_| u16::from(u8::rand(&mut rng)) + 1)
+        .collect::<Vec<u16>>();
+    
+    let poso_rand: Vec<BlsFr> = poso_rand
+        .iter()
+        .map(|w| {
+            BlsFr::from(*w)
+        })
+        .collect::<Vec<BlsFr>>();
+    let mut diff = poso_rand.clone();
+    
+    //commit to diff
+    let diff_time = start_timer!(|| "Committing to diff polynomial");
+    let diff = DensePolynomial::from_coefficients_vec(diff);
+    let diff = LabeledPolynomial::new("diff".to_string(), diff, None, None);
+    let diff_p = vec![&diff].into_iter();
+    let (diff_comm, diff_rand) = 
+        MarlinKZG10::<Bls12_381,DensePolynomial<BlsFr>>::commit(&pk.committer_key.clone(), diff_p, Some(rng)).unwrap();
+    end_timer!(diff_time);
 
     let s_prove = Instant::now();
         let proof = Marlin::<

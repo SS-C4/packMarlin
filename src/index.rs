@@ -1,4 +1,6 @@
 use ark_marlin::{ IndexProverKey, IndexVerifierKey};
+use ark_poly_commit::LabeledCommitment;
+use ark_poly_commit::marlin_pc::Commitment;
 use ark_std::{ start_timer, end_timer };
 use std::process::Command;
 
@@ -12,6 +14,15 @@ use crate::{ Bls12_381, BlsFr };
 use crate::UniversalSRS;
 use crate::{ R1CSFile, R1CS, CircomCircuit, ConstraintSystem, ConstraintSynthesizer };
 use crate::{ BufReader, Cursor, read, read_to_string, FromStr };
+
+pub(crate) fn loc_comm(circuit: CircomCircuit<Bls12_381>) -> Vec<LabeledCommitment<Commitment<Bls12_381>>> {
+    let rand_commitments_time = start_timer!(|| "Packmarlin::Commitments to locations of randomness");
+    // find offset
+
+    // compute commitments and return them
+
+    end_timer!(rand_commitments_time);
+}
 
 pub(crate) fn index(
     srs: &UniversalSRS<BlsFr,MarlinKZG10<Bls12_381,DensePolynomial<BlsFr>>>
@@ -69,5 +80,6 @@ pub(crate) fn index(
     .unwrap();
     end_timer!(s_index);
 
+    // return loc_comm output as well
     (pk, vk)
 } 

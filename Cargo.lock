@@ -249,7 +249,7 @@ dependencies = [
 [[package]]
 name = "ark-marlin"
 version = "0.3.0"
-source = "git+https://github.com/SS-C4/marlin.git#ad35f6733b82643890a2cf1a30b1455107972f1f"
+source = "git+https://github.com/SS-C4/marlin.git#3f873911535d4873789b27945f16ef4452342ae7"
 dependencies = [
  "ark-ff 0.3.0",
  "ark-poly 0.3.0",
@@ -1129,8 +1129,8 @@ dependencies = [
 
 [[package]]
 name = "ethers-core"
-version = "2.0.3"
-source = "git+https://github.com/gakonst/ethers-rs#23922536f29929a3e413d605bc16e33d4c858044"
+version = "2.0.4"
+source = "git+https://github.com/gakonst/ethers-rs#f7454f27666750449ca9005a4db032025b4c36ff"
 dependencies = [
  "arrayvec",
  "bytes",
