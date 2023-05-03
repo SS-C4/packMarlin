@@ -6,7 +6,7 @@ use ark_poly::{
     univariate::DensePolynomial, EvaluationDomain, Evaluations as EvaluationsOnDomain,
     GeneralEvaluationDomain, UVPolynomial,
 };
-use ark_poly_commit::marlin_pc::{Commitment, Randomness};
+use ark_poly_commit::marlin_pc::{Commitment, Randomness, CommitterKey};
 use ark_poly_commit::{PolynomialCommitment, LabeledCommitment};
 use crate::{ R1CSFile, R1CS, CircomCircuit, ConstraintSystem, ConstraintSynthesizer };
 use ark_std::{ start_timer, end_timer , cfg_into_iter, UniformRand};
@@ -38,13 +38,32 @@ pub(crate) fn write_poso_rand(poso_rand: Vec<u16>) {
     std::fs::write("./packR1CS/scripts/.output/poso_rand.json", poso_rand).unwrap();
 }
 
+pub(crate) struct ZtProof {
+    pub quotient_poly_comm: LabeledCommitment<Commitment<Bls12_381>>,
+}
+
+fn zt_prover(ck: CommitterKey<Bls12_381>, wit_diff_poly: DensePolynomial<BlsFr>) -> ZtProof {
+    let domain = GeneralEvaluationDomain::new(80000).unwrap();
+
+    let (q, r) =  wit_diff_poly.divide_by_vanishing_poly(domain).unwrap();
+
+    let quotient_poly = LabeledPolynomial::new("quotient_poly".to_string(), q, None, None);
+
+    let (quotient_poly_comm, _) = 
+        MarlinKZG10::<Bls12_381,DensePolynomial<BlsFr>>::commit(&ck.clone(), vec![&quotient_poly].into_iter(), None).unwrap();
+
+    ZtProof {
+        quotient_poly_comm: quotient_poly_comm[0].clone(),
+    }
+}
+
 
 pub(crate) fn prove(
     pk: &IndexProverKey<BlsFr,MarlinKZG10<Bls12_381,DensePolynomial<BlsFr>>>,
     circuit: CircomCircuit<Bls12_381>,
     rng: &mut StdRng,
     poso_size: usize
-) -> (Vec<LabeledCommitment<Commitment<Bls12_381>>>, Vec<Randomness<BlsFr, DensePolynomial<BlsFr>>>, Proof<BlsFr, MarlinKZG10<Bls12_381,DensePolynomial<BlsFr>>>) {
+) -> (ZtProof, Proof<BlsFr, MarlinKZG10<Bls12_381,DensePolynomial<BlsFr>>>) {
     // assert!(circuit.r1cs.num_inputs == pk.index.index_info.num_instance_variables);
 
     let domain_h = GeneralEvaluationDomain::new(pk.index.index_info.num_constraints).unwrap();
@@ -52,12 +71,14 @@ pub(crate) fn prove(
 
     let witness = circuit.witness.clone().unwrap();
     let public_input: Vec<BlsFr> = witness[1..circuit.r1cs.num_inputs].to_vec();
+    let pub_poly = domain_h.fft(&public_input);
     let mut w_extended = witness.clone();
     w_extended.extend(vec![
         BlsFr::zero();
-        pk.index.index_info.num_constraints - domain_x.size() - witness.len()
+        pk.index.index_info.num_constraints - witness.len()
     ]);
 
+    println!("witness len: {}, w_extended len: {}, num_constraints: {}, num_inputs: {}", witness.len(), w_extended.len(), pk.index.index_info.num_constraints, pk.index.index_info.num_instance_variables);
     
     let w_poly_time = start_timer!(|| "Computing w polynomial");
     
@@ -68,7 +89,7 @@ pub(crate) fn prove(
             if k % ratio == 0 {
                 BlsFr::zero()
             } else {
-                w_extended[k - (k / ratio) - 1] - &public_input[k]
+                w_extended[k - (k / ratio) - 1] - &pub_poly[k]
             }
         })
         .collect();
@@ -87,7 +108,7 @@ pub(crate) fn prove(
 
     let binding = w.clone();
     let w_p = vec![&binding].into_iter();
-    let (witness_comm, witness_rand) = 
+    let (witness_comm, _) = 
         MarlinKZG10::<Bls12_381,DensePolynomial<BlsFr>>::commit(&pk.committer_key, w_p, Some(rng)).unwrap();
 
     end_timer!(w_poly_comm_time);
@@ -164,14 +185,13 @@ pub(crate) fn prove(
     
     //commit to diff
     let diff_time = start_timer!(|| "Committing to diff polynomial");
-    let diff = DensePolynomial::from_coefficients_vec(diff);
-    let diff = LabeledPolynomial::new("diff".to_string(), diff, None, None);
+    let diff_poly = DensePolynomial::from_coefficients_vec(diff);
+    let diff = LabeledPolynomial::new("diff".to_string(), diff_poly.clone(), None, None);
     let diff_p = vec![&diff].into_iter();
     let (diff_comm, diff_rand) = 
         MarlinKZG10::<Bls12_381,DensePolynomial<BlsFr>>::commit(&pk.committer_key, diff_p, Some(rng)).unwrap();
     end_timer!(diff_time);  
  
-
     end_timer!(update_time);
 
 
@@ -182,10 +202,10 @@ pub(crate) fn prove(
         SimpleHashFiatShamirRng<Blake2s, ChaChaRng>,
     >::prove(&mod_pk, circuit.clone(), rng);
 
-    // let zt_proof = zt_prover();
+    let zt_proof = zt_prover(mod_pk.committer_key, diff_poly);
 
     // send proof consisting of 0th msg and normal proof and zerotest proof
     // (zt_proof, proof.unwrap())
-    (witness_comm, witness_rand, proof.unwrap())
+    (zt_proof, proof.unwrap())
     
 }

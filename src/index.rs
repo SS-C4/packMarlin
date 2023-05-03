@@ -1,8 +1,13 @@
+use ark_marlin::ahp::LabeledPolynomial;
 use ark_marlin::{ IndexProverKey, IndexVerifierKey};
-use ark_poly_commit::LabeledCommitment;
+use ark_poly::{ EvaluationDomain, Evaluations as EvaluationsOnDomain };
+use ark_poly::GeneralEvaluationDomain;
+use ark_poly_commit::{LabeledCommitment, PolynomialCommitment};
 use ark_poly_commit::marlin_pc::Commitment;
+use ark_poly_commit::marlin_pc::CommitterKey;
 use ark_std::{ start_timer, end_timer };
 use std::process::Command;
+use std::vec;
 
 use crate::Blake2s;
 use crate::SimpleHashFiatShamirRng;
@@ -10,23 +15,50 @@ use crate::DensePolynomial;
 use crate::ChaChaRng;
 use crate::MarlinKZG10;
 use crate::Marlin;
-use crate::{ Bls12_381, BlsFr };
+use crate::{ Bls12_381, BlsFr , G1Affine};
 use crate::UniversalSRS;
 use crate::{ R1CSFile, R1CS, CircomCircuit, ConstraintSystem, ConstraintSynthesizer };
 use crate::{ BufReader, Cursor, read, read_to_string, FromStr };
 
-pub(crate) fn loc_comm(circuit: CircomCircuit<Bls12_381>) -> Vec<LabeledCommitment<Commitment<Bls12_381>>> {
+pub(crate) fn loc_comm(circuit: CircomCircuit<Bls12_381>, ck: CommitterKey<Bls12_381>) -> Vec<G1Affine> {
     let rand_commitments_time = start_timer!(|| "Packmarlin::Commitments to locations of randomness");
-    // find offset
 
+    let offset = 100; // offset for location of randomness
+    let poso_size = 10000;
+    let num_poso = 8;
     // compute commitments and return them
+    // let mut onehot_list = vec![vec![BlsFr::from(0); 80000]; poso_size];
+
+    // let domain = GeneralEvaluationDomain::new(80000).unwrap();
+
+    // for i in 0..poso_size {
+    //     for j in 0..num_poso {
+    //         onehot_list[i][offset + i + j*num_poso] = BlsFr::from(1);
+    //     }
+    // }
+
+    // let mut onehot_interpolated = vec![];
+    // let mut onehot_labeled = vec![];
+    // for i in 0..poso_size {
+    //     onehot_interpolated.push(EvaluationsOnDomain::from_vec_and_domain(onehot_list[i].clone(), domain).interpolate());
+    //     onehot_labeled.push(LabeledPolynomial::new("w".to_string(), onehot_interpolated[i].clone(), None, None));
+    // }
+
+    // let (onehot_comm, _) = 
+    //     MarlinKZG10::<Bls12_381,DensePolynomial<BlsFr>>::commit(&ck, &onehot_labeled, None).unwrap();
+
+    let onehot_comm = ck.clone().powers;
 
     end_timer!(rand_commitments_time);
+
+    onehot_comm
 }
 
 pub(crate) fn index(
     srs: &UniversalSRS<BlsFr,MarlinKZG10<Bls12_381,DensePolynomial<BlsFr>>>
-) -> (IndexProverKey<BlsFr,MarlinKZG10<Bls12_381,DensePolynomial<BlsFr>>>, IndexVerifierKey<BlsFr,MarlinKZG10<Bls12_381,DensePolynomial<BlsFr>>>)
+) -> (IndexProverKey<BlsFr,MarlinKZG10<Bls12_381,DensePolynomial<BlsFr>>>, 
+      IndexVerifierKey<BlsFr,MarlinKZG10<Bls12_381,DensePolynomial<BlsFr>>>, 
+      Vec<G1Affine>)
 {
     let s_index = start_timer!(|| "Packmarlin::Index");
 
@@ -78,8 +110,11 @@ pub(crate) fn index(
         SimpleHashFiatShamirRng<Blake2s, ChaChaRng>,
     >::index(&srs, circuit.clone())
     .unwrap();
+
+    let loc_comm = loc_comm(circuit, pk.committer_key.clone());
+
     end_timer!(s_index);
 
     // return loc_comm output as well
-    (pk, vk)
+    (pk, vk, loc_comm)
 } 
