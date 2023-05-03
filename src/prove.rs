@@ -1,18 +1,15 @@
 use std::collections::BTreeMap;
-use std::process::Command;
-
 use ark_marlin::ahp::LabeledPolynomial;
 use ark_marlin::rng::FiatShamirRng;
 use ark_poly::{
     univariate::DensePolynomial, EvaluationDomain, Evaluations as EvaluationsOnDomain,
     GeneralEvaluationDomain, UVPolynomial,
 };
-use ark_poly_commit::marlin_pc::{Commitment, Randomness, CommitterKey};
+use ark_poly_commit::marlin_pc::{Commitment, CommitterKey};
 use ark_poly_commit::{PolynomialCommitment, LabeledCommitment};
-use crate::{ R1CSFile, R1CS, CircomCircuit, ConstraintSystem, ConstraintSynthesizer };
+use crate::{ CircomCircuit };
 use ark_std::{ start_timer, end_timer , cfg_into_iter, UniformRand};
 use rand::rngs::StdRng;
-use crate::{ BufReader, Cursor, read, read_to_string, FromStr };
 
 
 use crate::Blake2s;
@@ -21,7 +18,7 @@ use crate::ChaChaRng;
 use crate::MarlinKZG10;
 use crate::Marlin;
 use crate::{ Bls12_381, BlsFr };
-use ark_marlin::{IndexProverKey, Proof, AHPForR1CS, IndexVerifierKey};
+use ark_marlin::{IndexProverKey, Proof};
 use ark_ff::Zero;
 
 pub const PROTOCOL_NAME: &'static [u8] = b"packmarlin";
@@ -46,7 +43,7 @@ pub(crate) struct ZtProof {
 fn zt_prover(ck: CommitterKey<Bls12_381>, wit_diff_poly: DensePolynomial<BlsFr>) -> ZtProof {
     let domain = GeneralEvaluationDomain::new(80000).unwrap();
 
-    let (q, r) =  wit_diff_poly.divide_by_vanishing_poly(domain).unwrap();
+    let (_, r) =  wit_diff_poly.divide_by_vanishing_poly(domain).unwrap();
 
     let quotient_poly = LabeledPolynomial::new("quotient_poly".to_string(), r, None, None);
 
@@ -81,7 +78,7 @@ pub(crate) fn prove(
     let w_poly_time = start_timer!(|| "Computing w polynomial");
     
     let ratio = domain_h.size() / domain_x.size();
-    let v_H = domain_h.vanishing_polynomial().into();
+    let v_h = domain_h.vanishing_polynomial().into();
     let w_poly_evals = cfg_into_iter!(0..domain_h.size())
         .map(|k| {
             if k % ratio == 0 {
@@ -94,7 +91,7 @@ pub(crate) fn prove(
 
     let w_poly = &EvaluationsOnDomain::from_vec_and_domain(w_poly_evals, domain_h)
         .interpolate()
-        + &(&DensePolynomial::from_coefficients_slice(&[BlsFr::rand(rng)]) * &v_H);
+        + &(&DensePolynomial::from_coefficients_slice(&[BlsFr::rand(rng)]) * &v_h);
     let (w_poly, remainder) = w_poly.divide_by_vanishing_poly(domain_x).unwrap();
     assert!(remainder.is_zero());
 

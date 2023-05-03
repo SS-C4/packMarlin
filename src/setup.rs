@@ -10,7 +10,7 @@ use crate::{Bls12_381, BlsFr};
 use crate::{CanonicalSerialize, CanonicalDeserialize};
 use crate::UniversalSRS;
 
-
+#[allow(dead_code)]
 pub(crate) fn universal_setup() -> UniversalSRS<BlsFr,MarlinKZG10<Bls12_381,DensePolynomial<BlsFr>>> {
     let nc = 5000000;
     let nv = 5000000;
@@ -36,6 +36,7 @@ pub(crate) fn universal_setup() -> UniversalSRS<BlsFr,MarlinKZG10<Bls12_381,Dens
     srs
 }
 
+#[allow(dead_code)]
 pub(crate) fn load_srs() -> UniversalSRS<BlsFr,MarlinKZG10<Bls12_381,DensePolynomial<BlsFr>>> {
     
     let load_existing_setup_time = start_timer!(|| "Packmarlin::Load_Existing_Setup");

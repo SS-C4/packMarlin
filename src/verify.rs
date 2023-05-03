@@ -1,15 +1,13 @@
 use ark_bls12_381_old::G1Affine;
 use ark_marlin::ahp::LabeledPolynomial;
 use ark_marlin::rng::FiatShamirRng;
-use ark_marlin::{ IndexProverKey, IndexVerifierKey, Proof};
-use ark_poly::{ EvaluationDomain, Evaluations as EvaluationsOnDomain, UVPolynomial };
-use ark_poly::GeneralEvaluationDomain;
+use ark_marlin::{ IndexVerifierKey, Proof};
+use ark_poly::{ UVPolynomial };
 use ark_poly_commit::{LabeledCommitment, PolynomialCommitment};
 use ark_poly_commit::marlin_pc::Commitment;
 use ark_poly_commit::marlin_pc::CommitterKey;
 use ark_std::{ start_timer, end_timer, cfg_into_iter };
 use rand::rngs::StdRng;
-use std::process::Command;
 use std::vec;
 
 use crate::Blake2s;
@@ -21,19 +19,16 @@ use crate::Marlin;
 use crate::ark_ff::UniformRand;
 use crate::prove::{PROTOCOL_NAME, ZtProof};
 use crate::{ Bls12_381, BlsFr };
-use crate::UniversalSRS;
-use crate::{ R1CSFile, R1CS, CircomCircuit, ConstraintSystem, ConstraintSynthesizer };
-use crate::{ BufReader, Cursor, read, read_to_string, FromStr };
 
-fn commit_to_diff(poso_rand: Vec<BlsFr>, loc_comm: Vec<G1Affine>, ck: CommitterKey<Bls12_381>) -> LabeledCommitment<Commitment<Bls12_381>> {
+fn commit_to_diff(poso_rand: Vec<BlsFr>, _loc_comm: Vec<G1Affine>, ck: CommitterKey<Bls12_381>) -> LabeledCommitment<Commitment<Bls12_381>> {
     let diff_time = start_timer!(|| "Committing to diff polynomial");
     
-    let mut diff = poso_rand.clone();
+    let diff = poso_rand.clone();
 
     let diff = DensePolynomial::from_coefficients_vec(diff);
     let diff = LabeledPolynomial::new("diff".to_string(), diff, None, None);
     let diff_p = vec![&diff].into_iter();
-    let (diff_comm, diff_rand) = 
+    let (diff_comm, _) = 
         MarlinKZG10::<Bls12_381,DensePolynomial<BlsFr>>::commit(&ck.clone(), diff_p, None).unwrap();
     
     end_timer!(diff_time);
@@ -44,7 +39,7 @@ fn commit_to_diff(poso_rand: Vec<BlsFr>, loc_comm: Vec<G1Affine>, ck: CommitterK
 fn zt_verify(ztpf: ZtProof) -> bool {
     let zt_time = start_timer!(|| "Verifying zt proof");
 
-    let mut fs_rng: SimpleHashFiatShamirRng<Blake2s,ChaChaRng> = FiatShamirRng::initialize(&to_bytes![&PROTOCOL_NAME, &ztpf.quotient_poly_comm].unwrap());
+    let mut _fs_rng: SimpleHashFiatShamirRng<Blake2s,ChaChaRng> = FiatShamirRng::initialize(&to_bytes![&PROTOCOL_NAME, &ztpf.quotient_poly_comm].unwrap());
 
     end_timer!(zt_time);
 

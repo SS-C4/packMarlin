@@ -1,13 +1,7 @@
-use ark_marlin::ahp::LabeledPolynomial;
 use ark_marlin::{ IndexProverKey, IndexVerifierKey};
-use ark_poly::{ EvaluationDomain, Evaluations as EvaluationsOnDomain };
-use ark_poly::GeneralEvaluationDomain;
-use ark_poly_commit::{LabeledCommitment, PolynomialCommitment};
-use ark_poly_commit::marlin_pc::Commitment;
 use ark_poly_commit::marlin_pc::CommitterKey;
 use ark_std::{ start_timer, end_timer };
 use std::process::Command;
-use std::vec;
 
 use crate::Blake2s;
 use crate::SimpleHashFiatShamirRng;
@@ -20,12 +14,13 @@ use crate::UniversalSRS;
 use crate::{ R1CSFile, R1CS, CircomCircuit, ConstraintSystem, ConstraintSynthesizer };
 use crate::{ BufReader, Cursor, read, read_to_string, FromStr };
 
-pub(crate) fn loc_comm(circuit: CircomCircuit<Bls12_381>, ck: CommitterKey<Bls12_381>) -> Vec<G1Affine> {
+
+pub(crate) fn loc_comm(_circuit: CircomCircuit<Bls12_381>, ck: CommitterKey<Bls12_381>) -> Vec<G1Affine> {
     let rand_commitments_time = start_timer!(|| "Packmarlin::Commitments to locations of randomness");
 
-    let offset = 100; // offset for location of randomness
-    let poso_size = 10000;
-    let num_poso = 8;
+    // let offset = 100; // offset for location of randomness
+    // let poso_size = 10000;
+    // let num_poso = 8;
     // compute commitments and return them
     // let mut onehot_list = vec![vec![BlsFr::from(0); 80000]; poso_size];
 

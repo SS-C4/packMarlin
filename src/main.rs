@@ -16,8 +16,6 @@ use ark_marlin::SimpleHashFiatShamirRng;
 use ark_serialize::{CanonicalSerialize, CanonicalDeserialize};
 use ark_marlin::UniversalSRS;
 
-use crate::verify::verify;
-
 #[macro_use(to_bytes)]
 extern crate ark_ff;
 
@@ -81,10 +79,11 @@ fn setup(file: String, rng: &mut StdRng) {
     std::fs::write(file +"packed_srs.bin", srs_bytes).unwrap();
 }
 
+#[allow(dead_code)]
 fn main1() {
     let file: String = "./packR1CS/scripts/.output/".to_string();
 
-    let mut rng = &mut ark_std::test_rng();
+    let rng = &mut ark_std::test_rng();
     // setup("packed".to_string(), rng);
 
     let s_load = Instant::now();
@@ -123,6 +122,7 @@ fn main1() {
 
 }
 
+#[allow(dead_code)]
 fn main2() {
     let file: String = "./packR1CS/scripts/.output/".to_string();
 
@@ -165,14 +165,14 @@ fn main2() {
             BlsFr::from(*w)
         })
         .collect::<Vec<BlsFr>>();
-    let mut diff = poso_rand.clone();
+    let diff = poso_rand.clone();
     
     //commit to diff
     let diff_time = start_timer!(|| "Committing to diff polynomial");
     let diff = DensePolynomial::from_coefficients_vec(diff);
     let diff = LabeledPolynomial::new("diff".to_string(), diff, None, None);
     let diff_p = vec![&diff].into_iter();
-    let (diff_comm, diff_rand) = 
+    let (_, _) = 
         MarlinKZG10::<Bls12_381,DensePolynomial<BlsFr>>::commit(&pk.committer_key.clone(), diff_p, Some(rng)).unwrap();
     end_timer!(diff_time);
 
