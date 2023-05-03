@@ -111,7 +111,7 @@ pub(crate) fn index(
     >::index(&srs, circuit.clone())
     .unwrap();
 
-    let loc_comm = loc_comm(circuit, pk.committer_key.clone());
+    let loc_comm = loc_comm(circuit.clone(), pk.committer_key.clone());
 
     end_timer!(s_index);
 

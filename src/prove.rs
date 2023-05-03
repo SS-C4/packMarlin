@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::process::Command;
 
 use ark_marlin::ahp::LabeledPolynomial;
@@ -20,7 +21,7 @@ use crate::ChaChaRng;
 use crate::MarlinKZG10;
 use crate::Marlin;
 use crate::{ Bls12_381, BlsFr };
-use ark_marlin::{IndexProverKey, Proof, AHPForR1CS};
+use ark_marlin::{IndexProverKey, Proof, AHPForR1CS, IndexVerifierKey};
 use ark_ff::Zero;
 
 pub const PROTOCOL_NAME: &'static [u8] = b"packmarlin";
@@ -47,7 +48,7 @@ fn zt_prover(ck: CommitterKey<Bls12_381>, wit_diff_poly: DensePolynomial<BlsFr>)
 
     let (q, r) =  wit_diff_poly.divide_by_vanishing_poly(domain).unwrap();
 
-    let quotient_poly = LabeledPolynomial::new("quotient_poly".to_string(), q, None, None);
+    let quotient_poly = LabeledPolynomial::new("quotient_poly".to_string(), r, None, None);
 
     let (quotient_poly_comm, _) = 
         MarlinKZG10::<Bls12_381,DensePolynomial<BlsFr>>::commit(&ck.clone(), vec![&quotient_poly].into_iter(), None).unwrap();
@@ -57,17 +58,16 @@ fn zt_prover(ck: CommitterKey<Bls12_381>, wit_diff_poly: DensePolynomial<BlsFr>)
     }
 }
 
-
 pub(crate) fn prove(
     pk: &IndexProverKey<BlsFr,MarlinKZG10<Bls12_381,DensePolynomial<BlsFr>>>,
     circuit: CircomCircuit<Bls12_381>,
     rng: &mut StdRng,
     poso_size: usize
 ) -> (ZtProof, Proof<BlsFr, MarlinKZG10<Bls12_381,DensePolynomial<BlsFr>>>) {
-    // assert!(circuit.r1cs.num_inputs == pk.index.index_info.num_instance_variables);
 
     let domain_h = GeneralEvaluationDomain::new(pk.index.index_info.num_constraints).unwrap();
-    let domain_x = GeneralEvaluationDomain::new(pk.index.index_info.num_instance_variables).unwrap();
+    let domain_x = GeneralEvaluationDomain::new(circuit.r1cs.num_inputs).unwrap();
+    let domain_k = GeneralEvaluationDomain::new(pk.index.index_info.num_non_zero).unwrap();
 
     let witness = circuit.witness.clone().unwrap();
     let public_input: Vec<BlsFr> = witness[1..circuit.r1cs.num_inputs].to_vec();
@@ -75,11 +75,9 @@ pub(crate) fn prove(
     let mut w_extended = witness.clone();
     w_extended.extend(vec![
         BlsFr::zero();
-        pk.index.index_info.num_constraints - witness.len()
+        domain_h.size() - domain_x.size()
     ]);
 
-    println!("witness len: {}, w_extended len: {}, num_constraints: {}, num_inputs: {}", witness.len(), w_extended.len(), pk.index.index_info.num_constraints, pk.index.index_info.num_instance_variables);
-    
     let w_poly_time = start_timer!(|| "Computing w polynomial");
     
     let ratio = domain_h.size() / domain_x.size();
@@ -127,52 +125,90 @@ pub(crate) fn prove(
     end_timer!(poso_time);
     
     // re run packer and re-read witness
-    let packer_time = start_timer!(|| "Running packer.js with randomness");
-    let _ = Command::new("node")
-        .arg("./packR1CS/scripts/packer.js")
-        .arg("rand")
-        .output()
-        .expect("packer.js failed");
-    end_timer!(packer_time);
 
-    let file_time = start_timer!(|| "Loading new witness file");
-    let file: String = "./packR1CS/scripts/.output/".to_string();
+    // Update witness with poso_rand starting at offset. 
+    // The default values are 1, so add poso_rand[i] - 1
 
-    let data = read(file.clone()+"packed_subcircuit.r1cs").unwrap();
-    let witness = read_to_string(file.clone()+"packed_witness.json").unwrap();
+    let witness_time = start_timer!(|| "Updating witness with poso_rand");
+    let mut new_witness = circuit.witness.clone().unwrap();
+    let offset = circuit.r1cs.num_inputs;
+    for i in 0..poso_size {
+        for j in 0..11 {
+            new_witness[offset + i*11 + j] = witness[offset + i*11 + j] + BlsFr::from(poso_rand[i*11 + j] - 1);
+        }
+    }
+    end_timer!(witness_time);
 
-    let reader = BufReader::new(Cursor::new(&data[..]));
-    let r1csfile = R1CSFile::<Bls12_381>::new(reader).unwrap();
-    let r1cs = R1CS::from(r1csfile);
+    // let packer_time = start_timer!(|| "Running packer.js with randomness");
+    // let _ = Command::new("node")
+    //     .arg("./packR1CS/scripts/packer.js")
+    //     .arg("rand")
+    //     .output()
+    //     .expect("packer.js failed");
+    // end_timer!(packer_time);
 
-    let witness: Vec<String> = serde_json::from_str(&witness).unwrap();
+    // let file_time = start_timer!(|| "Loading new witness file");
+    // let file: String = "./packR1CS/scripts/.output/".to_string();
 
-    // convert witness into field elements
-    let witness = witness
-        .iter()
-        .map(|w| {
-            BlsFr::from_str(&w).unwrap()
-        })
-        .collect::<Vec<BlsFr>>();
+    // let data = read(file.clone()+"packed_subcircuit.r1cs").unwrap();
+    // let witness = read_to_string(file.clone()+"packed_witness.json").unwrap();
 
-    let witness = Some(witness);
+    // let reader = BufReader::new(Cursor::new(&data[..]));
+    // let r1csfile = R1CSFile::<Bls12_381>::new(reader).unwrap();
+    // let r1cs = R1CS::from(r1csfile);
 
-    let gen_time = start_timer!(|| "Generating constraints");
-    let mut circuit = CircomCircuit::<Bls12_381>{r1cs, witness};
-    let cs = ConstraintSystem::<BlsFr>::new_ref();
-    circuit.r1cs.wire_mapping = None;
-    circuit.clone().generate_constraints(cs.clone()).unwrap();
-    end_timer!(gen_time);
-    end_timer!(file_time);
+    // let witness: Vec<String> = serde_json::from_str(&witness).unwrap();
+
+    // // convert witness into field elements
+    // let witness = witness
+    //     .iter()
+    //     .map(|w| {
+    //         BlsFr::from_str(&w).unwrap()
+    //     })
+    //     .collect::<Vec<BlsFr>>();
+
+    // let witness = Some(witness);
+
+    // let gen_time = start_timer!(|| "Generating constraints");
+    // let mut circuit = CircomCircuit::<Bls12_381>{r1cs, witness};
+    // // let cs = ConstraintSystem::<BlsFr>::new_ref();
+    // circuit.r1cs.wire_mapping = None;
+    // // circuit.clone().generate_constraints(cs.clone()).unwrap();
+    // end_timer!(gen_time);
+    // end_timer!(file_time);
 
     // update vk inside pk
+    // three things to update, c, val_c, and evals_on_K.val_c
+
     let update_time = start_timer!(|| "Updating vk inside pk");
     let mut mod_pk = pk.clone();
+
+    for i in 0..pk.index.c[0].len() {
+        for j in 0..11 {
+            mod_pk.index.c[i][j].0 = mod_pk.index.c[i][j].0 + BlsFr::from(poso_rand[i*11 + j % poso_size*11]);
+        }
+    }
+
+    let c = pk.index.c
+        .iter()
+        .enumerate()
+        .map(|(r, row)| row.iter().map(move |(f, i)| ((r, *i), *f)))
+        .flatten()
+        .collect::<BTreeMap<(usize, usize), BlsFr>>();
     
-    let ind = AHPForR1CS::<BlsFr>::index(circuit.clone()).unwrap();
-    mod_pk.index.c = ind.c;
-    mod_pk.index.joint_arith.val_c = ind.joint_arith.val_c;
-    mod_pk.index.joint_arith.evals_on_K.val_c = ind.joint_arith.evals_on_K.val_c;
+    let mut val_c_vec = Vec::with_capacity(domain_k.size());
+
+    for (r, row) in pk.index.c.iter().enumerate() {
+        for i in row {
+            val_c_vec.push(c.get(&(r, i.1)).copied().unwrap_or(BlsFr::zero()));
+        }
+    }
+
+    // Needs to be multiplied by eq_poly_vals, but these are already precomputed and do not change
+    let val_c = EvaluationsOnDomain::from_vec_and_domain(val_c_vec, domain_k);
+    mod_pk.index.joint_arith.val_c = LabeledPolynomial::new("val_c".to_string(), val_c.clone().interpolate(), None, None);
+
+    mod_pk.index.joint_arith.evals_on_K.val_c = val_c.clone();
 
     // update the commitment to val_c - dummy MSM for now of size poso_size*reps
     let poso_rand: Vec<BlsFr> = poso_rand
@@ -181,14 +217,14 @@ pub(crate) fn prove(
             BlsFr::from(*w)
         })
         .collect::<Vec<BlsFr>>();
-    let mut diff = poso_rand.clone();
+    let diff = poso_rand.clone();
     
     //commit to diff
     let diff_time = start_timer!(|| "Committing to diff polynomial");
     let diff_poly = DensePolynomial::from_coefficients_vec(diff);
     let diff = LabeledPolynomial::new("diff".to_string(), diff_poly.clone(), None, None);
     let diff_p = vec![&diff].into_iter();
-    let (diff_comm, diff_rand) = 
+    let (_, _) = 
         MarlinKZG10::<Bls12_381,DensePolynomial<BlsFr>>::commit(&pk.committer_key, diff_p, Some(rng)).unwrap();
     end_timer!(diff_time);  
  
@@ -200,7 +236,7 @@ pub(crate) fn prove(
         BlsFr,
         MarlinKZG10<Bls12_381, DensePolynomial<BlsFr>>,
         SimpleHashFiatShamirRng<Blake2s, ChaChaRng>,
-    >::prove(&mod_pk, circuit.clone(), rng);
+    >::prove(&pk, circuit.clone(), rng);
 
     let zt_proof = zt_prover(mod_pk.committer_key, diff_poly);
 

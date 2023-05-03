@@ -81,7 +81,7 @@ fn setup(file: String, rng: &mut StdRng) {
     std::fs::write(file +"packed_srs.bin", srs_bytes).unwrap();
 }
 
-fn main() {
+fn main1() {
     let file: String = "./packR1CS/scripts/.output/".to_string();
 
     let mut rng = &mut ark_std::test_rng();
@@ -92,13 +92,14 @@ fn main() {
         let (r1cs, witness, pubinp, srs) 
             = load_values(file.to_string());
 
-        let mut circuit = CircomCircuit::<Bls12_381>{r1cs, witness};
-        let cs = ConstraintSystem::<BlsFr>::new_ref();
-        circuit.r1cs.wire_mapping = None;
-        circuit.clone().generate_constraints(cs.clone()).unwrap();
+        let circuit = CircomCircuit::<Bls12_381>{r1cs, witness};
+        // let cs = ConstraintSystem::<BlsFr>::new_ref();
+        // circuit.r1cs.wire_mapping = None;
+        // circuit.clone().generate_constraints(cs.clone()).unwrap();
+
         
-        let is_satisfied = cs.is_satisfied().unwrap();
-        assert!(is_satisfied, "Constraints not satisfied");
+        // let is_satisfied = cs.is_satisfied().unwrap();
+        // assert!(is_satisfied, "Constraints not satisfied");
 
     let t_load = s_load.elapsed();
     println!("load: {:?}", t_load);
@@ -122,76 +123,81 @@ fn main() {
 
 }
 
-// fn main() {
-//     let file: String = "./packR1CS/scripts/.output/".to_string();
+fn main2() {
+    let file: String = "./packR1CS/scripts/.output/".to_string();
 
-//     let mut rng = &mut ark_std::test_rng();
-//     // setup("packed".to_string(), rng);
+    let mut rng = &mut ark_std::test_rng();
+    // setup("packed".to_string(), rng);
 
-//     let s_load = Instant::now();
+    let s_load = Instant::now();
 
-//         let (r1cs, witness, pubinp, srs) 
-//             = load_values(file.to_string());
+        let (r1cs, witness, pubinp, srs) 
+            = load_values(file.to_string());
 
-//         let mut circuit = CircomCircuit::<Bls12_381>{r1cs, witness};
-//         let cs = ConstraintSystem::<BlsFr>::new_ref();
-//         circuit.r1cs.wire_mapping = None;
-//         circuit.clone().generate_constraints(cs.clone()).unwrap();
+        let mut circuit = CircomCircuit::<Bls12_381>{r1cs, witness};
+        let cs = ConstraintSystem::<BlsFr>::new_ref();
+        circuit.r1cs.wire_mapping = None;
+        circuit.clone().generate_constraints(cs.clone()).unwrap();
         
-//         let is_satisfied = cs.is_satisfied().unwrap();
-//         assert!(is_satisfied, "Constraints not satisfied");
+        let is_satisfied = cs.is_satisfied().unwrap();
+        assert!(is_satisfied, "Constraints not satisfied");
 
-//     let t_load = s_load.elapsed();
-//     println!("load: {:?}", t_load);
+    let t_load = s_load.elapsed();
+    println!("load: {:?}", t_load);
 
-//     let s_index = Instant::now();
-//         let (pk, vk) = Marlin::<
-//             BlsFr,
-//             MarlinKZG10<Bls12_381, DensePolynomial<BlsFr>>,
-//             SimpleHashFiatShamirRng<Blake2s, ChaChaRng>,
-//         >::index(&srs, circuit.clone())
-//         .unwrap();
-//     let t_index = s_index.elapsed();
-//     println!("index: {:?}", t_index);
+    let s_index = Instant::now();
+        let (pk, vk) = Marlin::<
+            BlsFr,
+            MarlinKZG10<Bls12_381, DensePolynomial<BlsFr>>,
+            SimpleHashFiatShamirRng<Blake2s, ChaChaRng>,
+        >::index(&srs, circuit.clone())
+        .unwrap();
+    let t_index = s_index.elapsed();
+    println!("index: {:?}", t_index);
 
-//     let poso_rand = cfg_into_iter!(0..10000*11)
-//         .map(|_| u16::from(u8::rand(&mut rng)) + 1)
-//         .collect::<Vec<u16>>();
+    let poso_rand = cfg_into_iter!(0..10000*11)
+        .map(|_| u16::from(u8::rand(&mut rng)) + 1)
+        .collect::<Vec<u16>>();
     
-//     let poso_rand: Vec<BlsFr> = poso_rand
-//         .iter()
-//         .map(|w| {
-//             BlsFr::from(*w)
-//         })
-//         .collect::<Vec<BlsFr>>();
-//     let mut diff = poso_rand.clone();
+    let poso_rand: Vec<BlsFr> = poso_rand
+        .iter()
+        .map(|w| {
+            BlsFr::from(*w)
+        })
+        .collect::<Vec<BlsFr>>();
+    let mut diff = poso_rand.clone();
     
-//     //commit to diff
-//     let diff_time = start_timer!(|| "Committing to diff polynomial");
-//     let diff = DensePolynomial::from_coefficients_vec(diff);
-//     let diff = LabeledPolynomial::new("diff".to_string(), diff, None, None);
-//     let diff_p = vec![&diff].into_iter();
-//     let (diff_comm, diff_rand) = 
-//         MarlinKZG10::<Bls12_381,DensePolynomial<BlsFr>>::commit(&pk.committer_key.clone(), diff_p, Some(rng)).unwrap();
-//     end_timer!(diff_time);
+    //commit to diff
+    let diff_time = start_timer!(|| "Committing to diff polynomial");
+    let diff = DensePolynomial::from_coefficients_vec(diff);
+    let diff = LabeledPolynomial::new("diff".to_string(), diff, None, None);
+    let diff_p = vec![&diff].into_iter();
+    let (diff_comm, diff_rand) = 
+        MarlinKZG10::<Bls12_381,DensePolynomial<BlsFr>>::commit(&pk.committer_key.clone(), diff_p, Some(rng)).unwrap();
+    end_timer!(diff_time);
 
-//     let s_prove = Instant::now();
-//         let proof = Marlin::<
-//             BlsFr,
-//             MarlinKZG10<Bls12_381, DensePolynomial<BlsFr>>,
-//             SimpleHashFiatShamirRng<Blake2s, ChaChaRng>,
-//         >::prove(&pk, circuit.clone(), rng);
-//     let t_prove = s_prove.elapsed();
-//     println!("prove: {:?}", t_prove);
+    let s_prove = Instant::now();
+        let proof = Marlin::<
+            BlsFr,
+            MarlinKZG10<Bls12_381, DensePolynomial<BlsFr>>,
+            SimpleHashFiatShamirRng<Blake2s, ChaChaRng>,
+        >::prove(&pk, circuit.clone(), rng);
+    let t_prove = s_prove.elapsed();
+    println!("prove: {:?}", t_prove);
 
-//     let s_verify = Instant::now();
-//         let is_valid = Marlin::<
-//             BlsFr,
-//             MarlinKZG10<Bls12_381, DensePolynomial<BlsFr>>,
-//             SimpleHashFiatShamirRng<Blake2s, ChaChaRng>,
-//         >::verify(&vk, &pubinp, &proof.unwrap(), rng);
-//     let t_verify = s_verify.elapsed();
-//     println!("verify: {:?}", t_verify);
+    let s_verify = Instant::now();
+        let is_valid = Marlin::<
+            BlsFr,
+            MarlinKZG10<Bls12_381, DensePolynomial<BlsFr>>,
+            SimpleHashFiatShamirRng<Blake2s, ChaChaRng>,
+        >::verify(&vk, &pubinp, &proof.unwrap(), rng);
+    let t_verify = s_verify.elapsed();
+    println!("verify: {:?}", t_verify);
 
-//     println!("is_valid: {}", is_valid.unwrap());
-// }
+    println!("is_valid: {}", is_valid.unwrap());
+}
+
+fn main() {
+    main1();
+    // main2();
+}

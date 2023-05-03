@@ -62,6 +62,7 @@ pub(crate) fn verify(
     loc_comm: Vec<G1Affine>,
     ck_trim: CommitterKey<Bls12_381>
 ) -> bool {
+    let vtime = start_timer!(|| "Packmarlin: Verify");
 
     let poso_time = start_timer!(|| "Computing poso_rand");
 
@@ -89,5 +90,6 @@ pub(crate) fn verify(
         SimpleHashFiatShamirRng<Blake2s, ChaChaRng>,
     >::verify(&vk, &pubinp, &proof, rng);
 
+    end_timer!(vtime);
     zt_verify(ztpf) & is_valid.unwrap()
 }
