@@ -24,7 +24,7 @@ pub mod index;
 pub mod prove;
 pub mod verify;
 
-fn load_values(file: String) -> (R1CS<Bls12_381>, Option<Vec<BlsFr>>, Vec<BlsFr>, UniversalSRS<BlsFr,MarlinKZG10<Bls12_381,DensePolynomial<BlsFr>>>) {
+fn load_values(file: String) -> (R1CS<Bls12_381>, Option<Vec<BlsFr>>, Vec<BlsFr>) {
     let data = read(file.clone()+"packed_subcircuit.r1cs").unwrap();
     let witness = read_to_string(file.clone()+"packed_witness.json").unwrap();
 
@@ -45,11 +45,11 @@ fn load_values(file: String) -> (R1CS<Bls12_381>, Option<Vec<BlsFr>>, Vec<BlsFr>
     let pubinp: Vec<BlsFr> = witness[1..r1cs.num_inputs].to_vec();
     let witness = Some(witness);
 
-    let srs_bytes = std::fs::read("packed_srs.bin").unwrap();
-    let srs = 
-        UniversalSRS::<BlsFr,MarlinKZG10<Bls12_381,DensePolynomial<BlsFr>>>::deserialize_unchecked(&srs_bytes[..]).unwrap();
+    // let srs_bytes = std::fs::read("packed_srs.bin").unwrap();
+    // let srs = 
+    //     UniversalSRS::<BlsFr,MarlinKZG10<Bls12_381,DensePolynomial<BlsFr>>>::deserialize_unchecked(&srs_bytes[..]).unwrap();
 
-    (r1cs, witness, pubinp, srs)
+    (r1cs, witness, pubinp)
 }
 
 #[allow(dead_code)]
@@ -86,27 +86,29 @@ fn main1() {
     let rng = &mut ark_std::test_rng();
     // setup("packed".to_string(), rng);
 
-    let s_load = Instant::now();
-
-        let (r1cs, witness, pubinp, srs) 
-            = load_values(file.to_string());
-
-        let circuit = CircomCircuit::<Bls12_381>{r1cs, witness};
-        // let cs = ConstraintSystem::<BlsFr>::new_ref();
-        // circuit.r1cs.wire_mapping = None;
-        // circuit.clone().generate_constraints(cs.clone()).unwrap();
-
-        
-        // let is_satisfied = cs.is_satisfied().unwrap();
-        // assert!(is_satisfied, "Constraints not satisfied");
-
-    let t_load = s_load.elapsed();
-    println!("load: {:?}", t_load);
+    let srs_bytes = std::fs::read("packed_srs.bin").unwrap();
+    let srs = 
+        UniversalSRS::<BlsFr,MarlinKZG10<Bls12_381,DensePolynomial<BlsFr>>>::deserialize_unchecked(&srs_bytes[..]).unwrap();
 
     let s_index = Instant::now();
     let (pk, vk, loc) = index::index(&srs.clone());
     let t_index = s_index.elapsed();
     println!("index: {:?}", t_index);
+
+    let s_load = Instant::now();
+    let (r1cs, witness, pubinp) 
+        = load_values(file.to_string());
+
+    let mut circuit = CircomCircuit::<Bls12_381>{r1cs, witness};
+    let cs = ConstraintSystem::<BlsFr>::new_ref();
+    circuit.r1cs.wire_mapping = None;
+    circuit.clone().generate_constraints(cs.clone()).unwrap();
+    
+    let is_satisfied = cs.is_satisfied().unwrap();
+    assert!(is_satisfied, "Constraints not satisfied");
+
+    let t_load = s_load.elapsed();
+    println!("load: {:?}", t_load);
 
     let s_prove = Instant::now();
     let (ztpf, proof) = prove::prove(&pk.clone(), circuit.clone(), rng, 10000);
@@ -129,9 +131,13 @@ fn main2() {
     let mut rng = &mut ark_std::test_rng();
     // setup("packed".to_string(), rng);
 
+    let srs_bytes = std::fs::read("packed_srs.bin").unwrap();
+    let srs = 
+        UniversalSRS::<BlsFr,MarlinKZG10<Bls12_381,DensePolynomial<BlsFr>>>::deserialize_unchecked(&srs_bytes[..]).unwrap();
+
     let s_load = Instant::now();
 
-        let (r1cs, witness, pubinp, srs) 
+        let (r1cs, witness, pubinp) 
             = load_values(file.to_string());
 
         let mut circuit = CircomCircuit::<Bls12_381>{r1cs, witness};

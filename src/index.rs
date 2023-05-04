@@ -11,7 +11,7 @@ use crate::MarlinKZG10;
 use crate::Marlin;
 use crate::{ Bls12_381, BlsFr , G1Affine};
 use crate::UniversalSRS;
-use crate::{ R1CSFile, R1CS, CircomCircuit, ConstraintSystem, ConstraintSynthesizer };
+use crate::{ R1CSFile, R1CS, CircomCircuit };
 use crate::{ BufReader, Cursor, read, read_to_string, FromStr };
 
 
@@ -89,11 +89,11 @@ pub(crate) fn index(
 
     let gen_time = start_timer!(|| "Generating constraints");
     let mut circuit = CircomCircuit::<Bls12_381>{r1cs, witness};
-    let cs = ConstraintSystem::<BlsFr>::new_ref();
+    // let cs = ConstraintSystem::<BlsFr>::new_ref();
     circuit.r1cs.wire_mapping = None;
-    circuit.clone().generate_constraints(cs.clone()).unwrap();
+    // circuit.clone().generate_constraints(cs.clone()).unwrap();
 
-    assert!(cs.is_satisfied().unwrap(), "Unsatisfied constraint system");
+    // assert!(cs.is_satisfied().unwrap(), "Unsatisfied constraint system");
 
     end_timer!(gen_time);
 

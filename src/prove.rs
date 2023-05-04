@@ -62,9 +62,9 @@ pub(crate) fn prove(
     poso_size: usize
 ) -> (ZtProof, Proof<BlsFr, MarlinKZG10<Bls12_381,DensePolynomial<BlsFr>>>) {
 
-    let domain_h = GeneralEvaluationDomain::new(pk.index.index_info.num_constraints).unwrap();
+    let domain_h = GeneralEvaluationDomain::new(pk.clone().index.index_info.num_constraints).unwrap();
     let domain_x = GeneralEvaluationDomain::new(circuit.r1cs.num_inputs).unwrap();
-    let domain_k = GeneralEvaluationDomain::new(pk.index.index_info.num_non_zero).unwrap();
+    let domain_k = GeneralEvaluationDomain::new(pk.clone().index.index_info.num_non_zero).unwrap();
 
     let witness = circuit.witness.clone().unwrap();
     let public_input: Vec<BlsFr> = witness[1..circuit.r1cs.num_inputs].to_vec();
@@ -104,14 +104,14 @@ pub(crate) fn prove(
     let binding = w.clone();
     let w_p = vec![&binding].into_iter();
     let (witness_comm, _) = 
-        MarlinKZG10::<Bls12_381,DensePolynomial<BlsFr>>::commit(&pk.committer_key, w_p, Some(rng)).unwrap();
+        MarlinKZG10::<Bls12_381,DensePolynomial<BlsFr>>::commit(&pk.clone().committer_key, w_p, Some(rng)).unwrap();
 
     end_timer!(w_poly_comm_time);
 
 
     // compute poso_rand
     let poso_time = start_timer!(|| "Computing poso_rand");
-    let mut fs_rng: SimpleHashFiatShamirRng<Blake2s,ChaChaRng> = FiatShamirRng::initialize(&to_bytes![&PROTOCOL_NAME, &pk.index_vk, &public_input].unwrap());
+    let mut fs_rng: SimpleHashFiatShamirRng<Blake2s,ChaChaRng> = FiatShamirRng::initialize(&to_bytes![&PROTOCOL_NAME, &pk.index_vk.clone(), &public_input].unwrap());
     fs_rng.absorb(&witness_comm);
 
     let poso_rand = cfg_into_iter!(0..poso_size*11)
@@ -128,10 +128,10 @@ pub(crate) fn prove(
 
     let witness_time = start_timer!(|| "Updating witness with poso_rand");
     let mut new_witness = circuit.witness.clone().unwrap();
-    let offset = circuit.r1cs.num_inputs;
-    for i in 0..poso_size {
-        for j in 0..11 {
-            new_witness[offset + i*11 + j] = witness[offset + i*11 + j] + BlsFr::from(poso_rand[i*11 + j] - 1);
+    let offset = 0;
+    for i in 0..11 {
+        for j in 0..poso_size {
+            new_witness[offset + i*11 + j] = new_witness[offset + i*11 + j] + BlsFr::from(poso_rand[i*11 + j] - 1);
         }
     }
     end_timer!(witness_time);
@@ -180,13 +180,13 @@ pub(crate) fn prove(
     let update_time = start_timer!(|| "Updating vk inside pk");
     let mut mod_pk = pk.clone();
 
-    for i in 0..pk.index.c[0].len() {
+    for i in 0..mod_pk.index.c[0].len() {
         for j in 0..11 {
-            mod_pk.index.c[i][j].0 = mod_pk.index.c[i][j].0 + BlsFr::from(poso_rand[i*11 + j % poso_size*11]);
+            mod_pk.index.c[0][0].0 = mod_pk.index.c[0][0].0 + BlsFr::from(poso_rand[i*11 + j % poso_size*11]);
         }
     }
 
-    let c = pk.index.c
+    let c = mod_pk.index.c
         .iter()
         .enumerate()
         .map(|(r, row)| row.iter().map(move |(f, i)| ((r, *i), *f)))
@@ -195,7 +195,7 @@ pub(crate) fn prove(
     
     let mut val_c_vec = Vec::with_capacity(domain_k.size());
 
-    for (r, row) in pk.index.c.iter().enumerate() {
+    for (r, row) in mod_pk.index.c.iter().enumerate() {
         for i in row {
             val_c_vec.push(c.get(&(r, i.1)).copied().unwrap_or(BlsFr::zero()));
         }
@@ -222,7 +222,7 @@ pub(crate) fn prove(
     let diff = LabeledPolynomial::new("diff".to_string(), diff_poly.clone(), None, None);
     let diff_p = vec![&diff].into_iter();
     let (_, _) = 
-        MarlinKZG10::<Bls12_381,DensePolynomial<BlsFr>>::commit(&pk.committer_key, diff_p, Some(rng)).unwrap();
+        MarlinKZG10::<Bls12_381,DensePolynomial<BlsFr>>::commit(&mod_pk.committer_key, diff_p, None).unwrap();
     end_timer!(diff_time);  
  
     end_timer!(update_time);
